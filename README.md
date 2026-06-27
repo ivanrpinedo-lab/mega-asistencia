@@ -1,51 +1,30 @@
-# mega-agenda — Mega Sostenible SAC
+# 🌿 Mega Asistencia PWA
 
-Aplicación PWA para gestión de pagos, cobros, eventos y recordatorios.
+Control de asistencia con QR, GPS y Selfie para Mega Aventura SAC y Mega Sostenible SAC.
 
-## Características
+## Stack
+- React + Vite
+- vite-plugin-pwa (Service Worker + Manifest)
+- localStorage para persistencia offline
 
-- 📅 **Agenda completa** — Cobros, pagos, letras, reuniones, capacitaciones, documentos, concursos
-- 🔔 **Alarmas y recordatorios** — Notificaciones push, countdown en tiempo real
-- 💬 **WhatsApp masivo** — Plantillas personalizables con variables dinámicas
-- 🚨 **Panel de alertas** — Eventos vencidos y urgentes en un vistazo
-- ⚙️ **Configuración** — Ajustes por administrador, backup JSON
-- 📱 **Instalable como app** — PWA compatible con Android e iOS
+## Funciones
+- ✅ Check-in por código QR personal + selfie
+- 📍 Check-in GPS + selfie con coordenadas incrustadas
+- 📡 Tracking GPS en tiempo real para personal de campo
+- 👔 Panel Gerente con PIN: KPIs, horas, liquidación, mapa GPS, fotos
+- 🪪 Fotochecks imprimibles con código QR único por colaborador
+- 📱 Instalable como app en Android e iPhone (PWA)
 
-## Instalación local
-
+## Deploy local
 ```bash
 npm install
 npm run dev
 ```
 
+## Build
+```bash
+npm run build
+```
+
 ## Deploy en Vercel
-
-1. Sube este repositorio a GitHub
-2. Entra a [vercel.com](https://vercel.com) → Import Project → selecciona el repo
-3. Vercel detecta Vite automáticamente → Deploy
-
-## Estructura
-
-```
-src/
-├── store/useStore.js       # Estado global + localStorage
-├── utils/helpers.js        # Funciones utilitarias
-├── components/
-│   ├── UI.jsx              # Componentes reutilizables
-│   ├── EventCard.jsx       # Tarjeta de evento
-│   ├── EventForm.jsx       # Formulario crear/editar
-│   └── EventDetail.jsx     # Modal detalle + acciones
-└── pages/
-    ├── Dashboard.jsx
-    ├── Agenda.jsx
-    ├── WhatsApp.jsx
-    ├── Alertas.jsx
-    └── Config.jsx
-```
-
-## Variables WhatsApp
-
-`{{nombre}}` `{{empresa}}` `{{monto}}` `{{moneda}}` `{{fecha_venc}}` `{{concepto}}` `{{dias_restantes}}`
-
----
-Desarrollado para **Mega Sostenible SAC** · Juanjuí, San Martín, Perú
+Conectar repositorio en vercel.com → deploy automático.
