@@ -1,0 +1,90 @@
+{
+  "name": "MegaAgenda — Recordatorios Automáticos Diarios",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }] }
+      },
+      "name": "Cron 8am diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [240, 300],
+      "id": "1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM events WHERE status = 'pending' AND alarm = true AND date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 days' AND phone IS NOT NULL AND phone != '' ORDER BY date ASC",
+        "options": {}
+      },
+      "name": "Supabase — eventos próximos",
+      "type": "n8n-nodes-base.postgres",
+      "position": [460, 300],
+      "id": "2",
+      "credentials": { "postgres": { "name": "Supabase MegaAgenda" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [{ "value1": "={{ $json.length }}", "operation": "larger", "value2": 0 }]
+        }
+      },
+      "name": "¿Hay eventos?",
+      "type": "n8n-nodes-base.if",
+      "position": [680, 300],
+      "id": "3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\nfor (const item of items) {\n  const ev = item.json;\n  const date = new Date(ev.date + 'T00:00:00');\n  const today = new Date();\n  today.setHours(0,0,0,0);\n  const days = Math.round((date - today) / 86400000);\n  const dateStr = date.toLocaleDateString('es-PE');\n  let msg = `Hola ${ev.contact || 'estimado/a'}, le recordamos: *${ev.title}*`;\n  if (ev.amount > 0) msg += ` por *${ev.currency} ${parseFloat(ev.amount).toFixed(2)}*`;\n  if (days === 0) msg += ` vence *HOY* (${dateStr}).`;\n  else if (days === 1) msg += ` vence *MAÑANA* (${dateStr}).`;\n  else msg += ` vence en *${days} días* (${dateStr}).`;\n  msg += `\\n\\nPor favor coordine con nosotros. — Mega Sostenible SAC 🌿`;\n  results.push({ json: { ...ev, message: msg, dias: days } });\n}\nreturn results;"
+      },
+      "name": "Construir mensajes",
+      "type": "n8n-nodes-base.code",
+      "position": [900, 240],
+      "id": "4"
+    },
+    {
+      "parameters": {
+        "url": "https://api.ycloud.com/v2/whatsapp/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "X-API-Key", "value": "5a04e83e83ddbc9ad658eadcbe5c3d9e" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "from", "value": "51915295685" },
+            { "name": "to", "value": "={{ $json.phone.replace(/\\D/g, '') }}" },
+            { "name": "type", "value": "text" },
+            { "name": "text", "value": "={{ JSON.stringify({ body: $json.message }) }}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "YCloud — enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1120, 240],
+      "id": "5"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_logs (id, event_id, phone, message, status, sent_at) VALUES (gen_random_uuid()::text, '{{ $json.id }}', '{{ $json.phone }}', '{{ $json.message.replace(/'/g, \"''\") }}', 'sent', NOW())",
+        "options": {}
+      },
+      "name": "Supabase — guardar log",
+      "type": "n8n-nodes-base.postgres",
+      "position": [1340, 240],
+      "id": "6",
+      "credentials": { "postgres": { "name": "Supabase MegaAgenda" } }
+    }
+  ],
+  "connections": {
+    "Cron 8am diario": { "main": [[{ "node": "Supabase — eventos próximos", "type": "main", "index": 0 }]] },
+    "Supabase — eventos próximos": { "main": [[{ "node": "¿Hay eventos?", "type": "main", "index": 0 }]] },
+    "¿Hay eventos?": { "main": [[{ "node": "Construir mensajes", "type": "main", "index": 0 }], []] },
+    "Construir mensajes": { "main": [[{ "node": "YCloud — enviar WhatsApp", "type": "main", "index": 0 }]] },
+    "YCloud — enviar WhatsApp": { "main": [[{ "node": "Supabase — guardar log", "type": "main", "index": 0 }]] }
+  }
+}

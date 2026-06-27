@@ -1,0 +1,74 @@
+{
+  "name": "MegaAgenda — Envío Masivo (Webhook desde App)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mega-agenda-masivo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook — envío masivo",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300],
+      "id": "1",
+      "webhookId": "mega-agenda-masivo"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst { events, templateBody, empresa } = typeof body === 'string' ? JSON.parse(body) : body;\n\nfunction buildMsg(tpl, ev, emp) {\n  const d = new Date(ev.date + 'T00:00:00');\n  const today = new Date(); today.setHours(0,0,0,0);\n  const days = Math.round((d - today) / 86400000);\n  return tpl\n    .replace(/{{nombre}}/g, ev.contact || 'Cliente')\n    .replace(/{{empresa}}/g, emp || 'Mega Sostenible SAC')\n    .replace(/{{monto}}/g, parseFloat(ev.amount || 0).toFixed(2))\n    .replace(/{{moneda}}/g, ev.currency || 'S/')\n    .replace(/{{fecha_venc}}/g, d.toLocaleDateString('es-PE'))\n    .replace(/{{num_factura}}/g, ev.title)\n    .replace(/{{concepto}}/g, ev.title)\n    .replace(/{{dias_restantes}}/g, Math.max(0, days));\n}\n\nreturn events.map(ev => ({\n  json: {\n    eventId: ev.id,\n    phone: (ev.phone || '').replace(/\\D/g,''),\n    message: buildMsg(templateBody, ev, empresa)\n  }\n}));"
+      },
+      "name": "Construir mensajes masivos",
+      "type": "n8n-nodes-base.code",
+      "position": [460, 300],
+      "id": "2"
+    },
+    {
+      "parameters": {
+        "url": "https://api.ycloud.com/v2/whatsapp/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "X-API-Key", "value": "5a04e83e83ddbc9ad658eadcbe5c3d9e" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ from: '51915295685', to: $json.phone, type: 'text', text: { body: $json.message } }) }}",
+        "options": { "batching": { "batch": { "batchSize": 1, "batchInterval": 1000 } } }
+      },
+      "name": "YCloud — enviar cada mensaje",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 300],
+      "id": "3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_logs (id, event_id, phone, message, status, sent_at) VALUES (gen_random_uuid()::text, '{{ $('Construir mensajes masivos').item.json.eventId }}', '{{ $('Construir mensajes masivos').item.json.phone }}', '{{ $('Construir mensajes masivos').item.json.message.substring(0,500).replace(/'/g, \"''\") }}', 'sent', NOW())",
+        "options": {}
+      },
+      "name": "Supabase — log masivo",
+      "type": "n8n-nodes-base.postgres",
+      "position": [900, 300],
+      "id": "4",
+      "credentials": { "postgres": { "name": "Supabase MegaAgenda" } }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }"
+      },
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1120, 300],
+      "id": "5"
+    }
+  ],
+  "connections": {
+    "Webhook — envío masivo": { "main": [[{ "node": "Construir mensajes masivos", "type": "main", "index": 0 }]] },
+    "Construir mensajes masivos": { "main": [[{ "node": "YCloud — enviar cada mensaje", "type": "main", "index": 0 }]] },
+    "YCloud — enviar cada mensaje": { "main": [[{ "node": "Supabase — log masivo", "type": "main", "index": 0 }]] },
+    "Supabase — log masivo": { "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]] }
+  }
+}

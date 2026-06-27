@@ -1,0 +1,74 @@
+{
+  "name": "MegaAgenda — Envío Manual (Webhook desde App)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mega-agenda-manual",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook — envío manual",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300],
+      "id": "1",
+      "webhookId": "mega-agenda-manual"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst { eventId, phone, message } = typeof body === 'string' ? JSON.parse(body) : body;\nreturn [{ json: { eventId, phone: phone.replace(/\\D/g,''), message } }];"
+      },
+      "name": "Parsear payload",
+      "type": "n8n-nodes-base.code",
+      "position": [460, 300],
+      "id": "2"
+    },
+    {
+      "parameters": {
+        "url": "https://api.ycloud.com/v2/whatsapp/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "X-API-Key", "value": "5a04e83e83ddbc9ad658eadcbe5c3d9e" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify({ from: '51915295685', to: $json.phone, type: 'text', text: { body: $json.message } }) }}",
+        "options": {}
+      },
+      "name": "YCloud — enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 300],
+      "id": "3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_logs (id, event_id, phone, message, status, sent_at) VALUES (gen_random_uuid()::text, '{{ $('Parsear payload').item.json.eventId }}', '{{ $('Parsear payload').item.json.phone }}', '{{ $('Parsear payload').item.json.message.replace(/'/g, \"''\") }}', 'sent', NOW())",
+        "options": {}
+      },
+      "name": "Supabase — guardar log",
+      "type": "n8n-nodes-base.postgres",
+      "position": [900, 300],
+      "id": "4",
+      "credentials": { "postgres": { "name": "Supabase MegaAgenda" } }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, phone: $('Parsear payload').item.json.phone }) }}"
+      },
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [1120, 300],
+      "id": "5"
+    }
+  ],
+  "connections": {
+    "Webhook — envío manual": { "main": [[{ "node": "Parsear payload", "type": "main", "index": 0 }]] },
+    "Parsear payload": { "main": [[{ "node": "YCloud — enviar WhatsApp", "type": "main", "index": 0 }]] },
+    "YCloud — enviar WhatsApp": { "main": [[{ "node": "Supabase — guardar log", "type": "main", "index": 0 }]] },
+    "Supabase — guardar log": { "main": [[{ "node": "Responder OK", "type": "main", "index": 0 }]] }
+  }
+}

@@ -7,25 +7,25 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Mega Asistencia',
-        short_name: 'MegaAsist',
-        description: 'Control de asistencia QR · GPS · Selfie — Mega Aventura & Mega Sostenible',
-        theme_color: '#1B6B3A',
-        background_color: '#EEF2F5',
+        name: 'Mega Agenda — Mega Sostenible SAC',
+        short_name: 'MegaAgenda',
+        description: 'Gestor de pagos, cobros y eventos para Mega Sostenible SAC',
+        theme_color: '#0D2137',
+        background_color: '#F0F4F8',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-        ],
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-      },
-    }),
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      }
+    })
   ],
 })
