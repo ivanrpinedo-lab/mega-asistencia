@@ -354,3 +354,62 @@ export async function getEmpresas() {
 export async function saveEmpresas(lista) {
   await setConfig('empresas', JSON.stringify(lista))
 }
+
+// ─── MÓDULO: PUNTOS MEGA ──────────────────────────────────────────────────────
+// Tablas: puntos_eventos { id, tenant_id, tipo, colab_id, pts, descripcion, notas, nivel, fecha, created_at }
+
+const LS_PUNTOS = 'mega_puntos_v1'
+function lsPuntosLoad() {
+  try { const s = localStorage.getItem(LS_PUNTOS); return s ? JSON.parse(s) : { eventos: [] } } catch { return { eventos: [] } }
+}
+function lsPuntosSave(d) {
+  try { localStorage.setItem(LS_PUNTOS, JSON.stringify(d)) } catch {}
+}
+
+export async function getPuntosEventos(colabId = null) {
+  if (supabase) {
+    const tid = getTenantIdActivo()
+    if (!tid) return []
+    let q = supabase.from('puntos_eventos').select('*')
+      .eq('tenant_id', tid)
+      .order('created_at', { ascending: false })
+    if (colabId) q = q.eq('colab_id', colabId)
+    const { data, error } = await q
+    if (error) throw error
+    return data || []
+  }
+  const d = lsPuntosLoad()
+  return colabId ? d.eventos.filter(e => e.colab_id === colabId) : d.eventos
+}
+
+export async function insertPuntosEvento(ev) {
+  if (supabase) {
+    const tid = getTenantIdActivo()
+    if (!tid) throw new Error('Sin tenant activo')
+    const { data, error } = await supabase
+      .from('puntos_eventos')
+      .insert({ ...ev, tenant_id: tid })
+      .select().single()
+    if (error) throw error
+    return data
+  }
+  const d = lsPuntosLoad()
+  const nuevo = { ...ev, id: String(Date.now()), created_at: new Date().toISOString() }
+  d.eventos.unshift(nuevo)
+  lsPuntosSave(d)
+  return nuevo
+}
+
+export async function deletePuntosEvento(id) {
+  if (supabase) {
+    const tid = getTenantIdActivo()
+    const { error } = await supabase
+      .from('puntos_eventos').delete()
+      .eq('id', id).eq('tenant_id', tid)
+    if (error) throw error
+    return
+  }
+  const d = lsPuntosLoad()
+  d.eventos = d.eventos.filter(e => e.id !== id)
+  lsPuntosSave(d)
+}
