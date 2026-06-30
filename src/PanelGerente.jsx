@@ -666,6 +666,123 @@ function DashboardGeneral({ data, mes, colabsFiltrados, feriados = [], configFer
 }
 
 // ─── PANEL GERENTE PRINCIPAL ──────────────────────────────────────────────────
+// ─── EXPORTAR EXCEL ───────────────────────────────────────────────────────────
+function csvEscape(val) {
+  if (val === null || val === undefined) return ''
+  const s = String(val)
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+function descargarCSV(filas, nombre) {
+  const BOM = '\uFEFF' // para que Excel abra con acentos correctamente
+  const contenido = BOM + filas.map(f => f.map(csvEscape).join(',')).join('\n')
+  const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = nombre; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// Reporte detallado — una fila por marcación
+function exportarExcel(data, mes, colabsFiltrados) {
+  const registros = data.registros
+    .filter(r => r.tipo === 'checkin' && r.fecha?.startsWith(mes))
+    .sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''))
+
+  const filas = [
+    ['REPORTE DE ASISTENCIA — MEGA AVENTURA SAC / MEGA SOSTENIBLE SAC'],
+    [`Período: ${mes}`, `Generado: ${new Date().toLocaleDateString('es-PE')} ${new Date().toLocaleTimeString('es-PE')}`],
+    [],
+    ['Colaborador', 'Empresa', 'Fecha', 'Hora', 'Tipo', 'Método', 'GPS Lat', 'GPS Lng', 'Foto', 'Observaciones'],
+  ]
+
+  registros.forEach(r => {
+    const colab = data.colaboradores.find(c => c.id === (r.colab_id || r.colabId))
+    if (colabsFiltrados.length && !colabsFiltrados.find(c => c.id === colab?.id)) return
+    const tm = r.tipo_marca || r.tipoMarca || ''
+    filas.push([
+      colab?.nombre || '—',
+      colab?.empresa || '—',
+      r.fecha || '',
+      r.hora || '',
+      tm.charAt(0).toUpperCase() + tm.slice(1),
+      r.metodo || '',
+      r.gpsLat || r.gps_lat || '',
+      r.gpsLng || r.gps_lng || '',
+      r.foto ? 'Sí' : 'No',
+      r.observaciones || '',
+    ])
+  })
+
+  filas.push([])
+  filas.push([`Total marcaciones: ${registros.length}`])
+  descargarCSV(filas, `Asistencia_${mes}_Mega.csv`)
+}
+
+// Resumen mensual — una fila por colaborador con métricas calculadas
+function exportarResumenExcel(data, mes, colabsFiltrados, feriados, configFeriados) {
+  const filas = [
+    ['RESUMEN MENSUAL DE ASISTENCIA — MEGA AVENTURA SAC / MEGA SOSTENIBLE SAC'],
+    [`Período: ${mes}`, `Generado: ${new Date().toLocaleDateString('es-PE')} ${new Date().toLocaleTimeString('es-PE')}`],
+    [],
+    [
+      'Colaborador', 'Empresa', 'Cargo', 'Salario (S/)',
+      'Días hábiles', 'Días trabajados', 'Ausencias', 'Tardanzas', 'Días campo',
+      'Horas totales', 'Horas extra', '% Asistencia',
+      'Salario base (S/)', 'Horas extra (S/)', 'Adelantos (S/)', 'Desc. tardanza (S/)',
+      'TOTAL NETO (S/)',
+    ],
+  ]
+
+  const lista = colabsFiltrados.length ? colabsFiltrados : data.colaboradores
+  lista.forEach(c => {
+    const regs = data.registros.filter(r => r.colab_id === c.id || r.colabId === c.id)
+    const m = calcularMetricasColab(regs, Number(c.salario) || 0, mes, c, feriados, configFeriados)
+    filas.push([
+      c.nombre,
+      c.empresa || '',
+      c.cargo || '',
+      Number(c.salario) || 0,
+      m.diasHabiles,
+      m.diasTrabajados,
+      m.ausencias,
+      m.tardanzas,
+      m.diasCampo,
+      Math.round(m.horasTotales * 10) / 10,
+      Math.round(m.horasExtra * 10) / 10,
+      m.pctAsistencia + '%',
+      Math.round(m.salarioBase * 100) / 100,
+      Math.round(m.costoExtra * 100) / 100,
+      Math.round(m.adelantos * 100) / 100,
+      Math.round(m.descTardanza * 100) / 100,
+      Math.round(m.totalNeto * 100) / 100,
+    ])
+  })
+
+  // Totales
+  filas.push([])
+  const totales = lista.map(c => {
+    const regs = data.registros.filter(r => r.colab_id === c.id || r.colabId === c.id)
+    return calcularMetricasColab(regs, Number(c.salario) || 0, mes, c, feriados, configFeriados)
+  })
+  filas.push([
+    'TOTALES', '', '', lista.reduce((s, c) => s + (Number(c.salario) || 0), 0),
+    '', totales.reduce((s, m) => s + m.diasTrabajados, 0),
+    totales.reduce((s, m) => s + m.ausencias, 0),
+    totales.reduce((s, m) => s + m.tardanzas, 0), '',
+    Math.round(totales.reduce((s, m) => s + m.horasTotales, 0) * 10) / 10,
+    Math.round(totales.reduce((s, m) => s + m.horasExtra, 0) * 10) / 10, '',
+    Math.round(totales.reduce((s, m) => s + m.salarioBase, 0) * 100) / 100,
+    Math.round(totales.reduce((s, m) => s + m.costoExtra, 0) * 100) / 100,
+    Math.round(totales.reduce((s, m) => s + m.adelantos, 0) * 100) / 100,
+    Math.round(totales.reduce((s, m) => s + m.descTardanza, 0) * 100) / 100,
+    Math.round(totales.reduce((s, m) => s + m.totalNeto, 0) * 100) / 100,
+  ])
+
+  descargarCSV(filas, `Resumen_${mes}_Mega.csv`)
+}
+
 export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador, removeColaborador, mesFiltro, setMesFiltro, empresas = [], onEmpresasChange }) {
   const [subView, setSubView] = useState('menu')
   const [colabSelId, setColabSelId] = useState(null)
@@ -845,7 +962,21 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
         {/* HISTORIAL */}
         {subView === 'historial' && (
           <div>
-            <div style={{ fontWeight:900, fontSize:20, marginBottom:20 }}>📋 Historial de marcaciones</div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10 }}>
+              <div style={{ fontWeight:900, fontSize:20 }}>📋 Historial de marcaciones</div>
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                <button onClick={() => exportarExcel(data, mesFiltro||mes, colabsFiltrados)} style={{
+                  background: '#1B6B3A', color:'#fff', border:'none', borderRadius:10,
+                  padding:'10px 18px', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit',
+                  display:'flex', alignItems:'center', gap:8,
+                }}>📥 Exportar Excel</button>
+                <button onClick={() => exportarResumenExcel(data, mesFiltro||mes, colabsFiltrados, feriados, configFeriados)} style={{
+                  background: '#0D47A1', color:'#fff', border:'none', borderRadius:10,
+                  padding:'10px 18px', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit',
+                  display:'flex', alignItems:'center', gap:8,
+                }}>📊 Resumen mensual</button>
+              </div>
+            </div>
             {data.registros.filter(r=>r.tipo==='checkin'&&r.fecha?.startsWith(mesFiltro||mes)).length===0 ? (
               <Card style={{ textAlign:'center', padding:40, color:'#888' }}>Sin marcaciones en este período.</Card>
             ) : (
