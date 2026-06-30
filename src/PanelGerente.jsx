@@ -7,6 +7,7 @@ import { PanelEquipo } from './PanelEquipo.jsx'
 import { PanelFotocheck } from './Fotocheck.jsx'
 import { PanelFeriados } from './PanelFeriados.jsx'
 import { getFeriados, getConfigFeriados, esFeriado, infoFeriado, diasHabilesConFeriados, TIPO_FERIADO } from './feriados.js'
+import { cambiarPassword, getTenant } from './auth.js'
 
 // ─── PIN DE ACCESO ────────────────────────────────────────────────────────────
 const PIN_KEY = 'mega_gerente_pin'
@@ -1097,6 +1098,9 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
               </div>
             </Card>
 
+            {/* CAMBIAR CONTRASEÑA */}
+            <CambiarPasswordCard toast_={toast_} />
+
             {/* PIN */}
             <Card style={{ maxWidth: 440 }}>
               <div style={{ fontWeight: 700, color: T.gris, marginBottom: 16 }}>🔑 Cambiar PIN de acceso al panel gerente</div>
@@ -1127,6 +1131,57 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
         )}
       </div>
     </div>
+  )
+}
+
+// ─── CAMBIAR CONTRASEÑA ───────────────────────────────────────────────────────
+function CambiarPasswordCard({ toast_ }) {
+  const tenant = getTenant()
+  const [f, setF] = useState({ nueva: '', confirmar: '' })
+  const [guardando, setGuardando] = useState(false)
+  const [exito, setExito] = useState(false)
+
+  // Solo mostrar si el usuario inició sesión con email (no Google)
+  if (!tenant?.email) return null
+
+  const guardar = async () => {
+    if (f.nueva.length < 6) return toast_('La contraseña debe tener al menos 6 caracteres', 'err')
+    if (f.nueva !== f.confirmar) return toast_('Las contraseñas no coinciden', 'err')
+    setGuardando(true)
+    try {
+      await cambiarPassword(f.nueva)
+      setF({ nueva: '', confirmar: '' })
+      setExito(true)
+      setTimeout(() => setExito(false), 4000)
+      toast_('✅ Contraseña actualizada correctamente')
+    } catch (e) {
+      toast_('Error: ' + e.message, 'err')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <Card style={{ maxWidth: 440, marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, color: T.azul, marginBottom: 4, fontSize: 15 }}>🔒 Cambiar contraseña de acceso</div>
+      <div style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>Cuenta: {tenant.email}</div>
+
+      {exito && (
+        <div style={{ background: T.verdeLight, border: `1px solid ${T.verde}`, borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: T.verde, fontWeight: 700 }}>
+          ✅ Contraseña actualizada correctamente
+        </div>
+      )}
+
+      <Field label="Nueva contraseña (mínimo 6 caracteres)">
+        <Inp type="password" value={f.nueva} onChange={v => setF({ ...f, nueva: v })} placeholder="••••••••" />
+      </Field>
+      <Field label="Confirmar nueva contraseña">
+        <Inp type="password" value={f.confirmar} onChange={v => setF({ ...f, confirmar: v })} placeholder="••••••••" />
+      </Field>
+      <Btn color={T.azul} onClick={guardar} disabled={guardando}>
+        {guardando ? '⏳ Guardando...' : '🔒 Actualizar contraseña'}
+      </Btn>
+    </Card>
   )
 }
 

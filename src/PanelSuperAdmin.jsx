@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { T } from './utils.js'
 import { Btn, Card, Inp, Spinner, Badge } from './components.jsx'
 import { supabase } from './db.js'
+import { superAdminResetPassword } from './auth.js'
 
 // ─── CLAVE MAESTRA DEL SUPERADMIN ────────────────────────────────────────────
 // Cambia esta clave por una segura
@@ -328,6 +329,25 @@ export function PanelSuperAdmin({ onSalir }) {
                           style={{ flex:1, padding:'12px', borderRadius:10, border:'2px solid #FFD54F44', background: esPro?'#FFD54F22':'transparent', color: esPro?'#FFD54F':'#666', cursor: !esPro?'pointer':'default', fontWeight:800, fontSize:13 }}>
                           ⭐ Plan Pro {esPro && '← actual'}
                         </button>
+                      </div>
+
+                      {/* Resetear contraseña */}
+                      <div style={{ marginTop:10 }}>
+                        <button onClick={async () => {
+                          if (!confirm(`¿Enviar email de reseteo de contraseña a ${t.email}?`)) return
+                          setProcesando(t.id)
+                          try {
+                            await superAdminResetPassword(t.email)
+                            toast_(`✅ Email de reseteo enviado a ${t.email}`)
+                          } catch (e) { toast_('Error: ' + e.message, 'err') }
+                          setProcesando(null)
+                        }} disabled={estaProcesando}
+                          style={{ width:'100%', padding:'11px', borderRadius:10, border:'2px solid #0D47A144', background:'#0D47A122', color:'#90CAF9', cursor:'pointer', fontWeight:700, fontSize:13, fontFamily:'inherit' }}>
+                          🔑 Enviar reseteo de contraseña a {t.email}
+                        </button>
+                        <div style={{ fontSize:10, color:'#555', marginTop:4, textAlign:'center' }}>
+                          El usuario recibirá un email con un enlace para crear una nueva contraseña
+                        </div>
                       </div>
                     </div>
                   )}

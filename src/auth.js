@@ -307,3 +307,28 @@ export async function verificarSesion() {
 
   return null // No autenticado → mostrar pantalla de login/vinculación
 }
+
+// ─── CAMBIAR CONTRASEÑA DEL USUARIO ACTUAL ────────────────────────────────────
+export async function cambiarPassword(nuevaPassword) {
+  if (!supabase) throw new Error('Supabase no configurado')
+  if (!nuevaPassword || nuevaPassword.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres')
+  const { error } = await supabase.auth.updateUser({ password: nuevaPassword })
+  if (error) throw new Error(error.message)
+}
+
+// ─── SUPERADMIN: OBTENER TODOS LOS TENANTS ────────────────────────────────────
+export async function getTodosLosTenants() {
+  if (!supabase) throw new Error('Supabase no configurado')
+  const { data, error } = await supabase.from('tenants').select('*').order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return data || []
+}
+
+// ─── SUPERADMIN: ENVIAR EMAIL DE RESETEO DE CLAVE A UN TENANT ────────────────
+export async function superAdminResetPassword(email) {
+  if (!supabase) throw new Error('Supabase no configurado')
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '?reset=1',
+  })
+  if (error) throw new Error(error.message)
+}
