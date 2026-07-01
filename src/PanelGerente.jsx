@@ -968,6 +968,7 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
             feriados={feriados}
             configFeriados={configFeriados}
             toast_={toast_}
+            onCambioMes={setMesFiltro}
           />
         )}
 
@@ -1087,12 +1088,17 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
 }
 
 // ─── HISTORIAL CON EXPORTACIÓN ───────────────────────────────────────────────
-function HistorialConExport({ data, mes, colabsFiltrados, feriados, configFeriados, toast_ }) {
-  const [modoRango, setModoRango]   = useState('mes')   // 'mes' | 'fechas'
+function HistorialConExport({ data, mes, colabsFiltrados, feriados, configFeriados, toast_, onCambioMes }) {
+  const [modoRango, setModoRango]   = useState('mes')
   const [mesSel, setMesSel]         = useState(mes)
   const [desde, setDesde]           = useState(mes + '-01')
   const [hasta, setHasta]           = useState(mes + '-' + new Date(mes.split('-')[0], mes.split('-')[1], 0).getDate().toString().padStart(2,'0'))
   const [modalExport, setModalExport] = useState(false)
+
+  const cambiarMes = (nuevoMes) => {
+    setMesSel(nuevoMes)
+    if (onCambioMes) onCambioMes(nuevoMes) // recarga desde Supabase
+  }
 
   // Filtrar registros según modo
   const registrosFiltrados = data.registros.filter(r => {
@@ -1132,7 +1138,7 @@ function HistorialConExport({ data, mes, colabsFiltrados, feriados, configFeriad
         {modoRango === 'mes' ? (
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <label style={{ fontSize:12, fontWeight:700, color:T.gris }}>Mes:</label>
-            <input type="month" value={mesSel} onChange={e => setMesSel(e.target.value)}
+            <input type="month" value={mesSel} onChange={e => cambiarMes(e.target.value)}
               style={{ padding:'8px 12px', borderRadius:8, border:'1px solid #ccc', fontSize:14, fontFamily:'inherit' }}/>
             <span style={{ fontSize:12, color:'#888' }}>
               {registrosFiltrados.length} marcaciones

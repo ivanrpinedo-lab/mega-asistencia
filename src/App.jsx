@@ -43,8 +43,8 @@ function useAppData(mesFiltro) {
   const cargarColaboradores = useCallback(async () => {
     try { setColaboradores(await getColaboradores()) } catch (e) { setError(e.message) }
   }, [])
-  const cargarRegistros = useCallback(async () => {
-    try { setRegistros(await getRegistros(mesFiltro)) } catch (e) { setError(e.message) }
+  const cargarRegistros = useCallback(async (mes_) => {
+    try { setRegistros(await getRegistros(mes_ || mesFiltro)) } catch (e) { setError(e.message) }
   }, [mesFiltro])
   const cargarHoy = useCallback(async () => {
     try { setRegistrosHoy_(await getRegistrosHoy(hoy())) } catch (e) { setError(e.message) }
@@ -82,7 +82,7 @@ function useAppData(mesFiltro) {
     await cargarRegistros(); await cargarHoy()
   }
 
-  return { colaboradores, registros, registrosHoy: registrosHoy_, empresas, cargando, error, cargarTodo, addColaborador, removeColaborador, addRegistro }
+  return { colaboradores, registros, registrosHoy: registrosHoy_, empresas, cargando, error, cargarTodo, cargarRegistros, addColaborador, removeColaborador, addRegistro }
 }
 
 // ─── LECTOR QR ────────────────────────────────────────────────────────────────
@@ -697,7 +697,7 @@ function AppMain() {
   const [empresaFija, setEmpresaFijaState] = useState(() => getEmpresaFija())
   const [configurandoEmpresa, setConfigurando] = useState(false) // se activa después de cargar sesión y empresas
 
-  const { colaboradores, registros, registrosHoy, empresas, cargando, error, cargarTodo, addColaborador, removeColaborador, addRegistro } = useAppData(mesFiltro)
+  const { colaboradores, registros, registrosHoy, empresas, cargando, error, cargarTodo, cargarRegistros, addColaborador, removeColaborador, addRegistro } = useAppData(mesFiltro)
   const toast_ = useCallback((msg, tipo='ok') => { setToast({msg,tipo}); setTimeout(()=>setToast(null),3500) }, [])
 
   // Activar configuración de empresa solo cuando:
@@ -738,7 +738,10 @@ function AppMain() {
       onSalir={() => setModoGerente(false)}
       addColaborador={addColaborador}
       removeColaborador={removeColaborador}
-      mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
+      mesFiltro={mesFiltro} setMesFiltro={async (nuevoMes) => {
+        setMesFiltro(nuevoMes)
+        await cargarRegistros(nuevoMes)
+      }}
       empresas={empresas}
       onEmpresasChange={async (nuevas) => {
         try {
