@@ -959,64 +959,16 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
           </div>
         )}
 
-        {/* AJUSTES */}
         {/* HISTORIAL */}
         {subView === 'historial' && (
-          <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:10 }}>
-              <div style={{ fontWeight:900, fontSize:20 }}>📋 Historial de marcaciones</div>
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <button onClick={() => exportarExcel(data, mesFiltro||mes, colabsFiltrados)} style={{
-                  background: '#1B6B3A', color:'#fff', border:'none', borderRadius:10,
-                  padding:'10px 18px', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit',
-                  display:'flex', alignItems:'center', gap:8,
-                }}>📥 Exportar Excel</button>
-                <button onClick={() => exportarResumenExcel(data, mesFiltro||mes, colabsFiltrados, feriados, configFeriados)} style={{
-                  background: '#0D47A1', color:'#fff', border:'none', borderRadius:10,
-                  padding:'10px 18px', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit',
-                  display:'flex', alignItems:'center', gap:8,
-                }}>📊 Resumen mensual</button>
-              </div>
-            </div>
-            {data.registros.filter(r=>r.tipo==='checkin'&&r.fecha?.startsWith(mesFiltro||mes)).length===0 ? (
-              <Card style={{ textAlign:'center', padding:40, color:'#888' }}>Sin marcaciones en este período.</Card>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {data.registros.filter(r=>r.tipo==='checkin'&&r.fecha?.startsWith(mesFiltro||mes))
-                  .sort((a,b)=>(b.timestamp||'').localeCompare(a.timestamp||''))
-                  .map(r => {
-                    const colab = data.colaboradores.find(c=>c.id===(r.colab_id||r.colabId))
-                    const tm = r.tipo_marca||r.tipoMarca
-                    const color = tm==='entrada'?T.verde:tm==='salida'?T.rojo:T.morado
-                    return (
-                      <Card key={r.id} style={{ borderLeft:`4px solid ${color}`, padding:'14px 18px' }}>
-                        <div style={{ display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
-                          <div style={{ width:52, height:52, borderRadius:10, overflow:'hidden', background:T.grisLight, flexShrink:0, border:`2px solid ${color}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                            {r.foto?<img src={r.foto} alt="selfie" style={{ width:'100%', height:'100%', objectFit:'cover' }} />:<span style={{ fontSize:22 }}>👤</span>}
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:4 }}>
-                              <span style={{ fontWeight:800, fontSize:15 }}>{colab?.nombre||'—'}</span>
-                              <Badge label={(tm||'').toUpperCase()} color={color} />
-                              <Badge label={
-                                r.metodo==='GPS+Selfie'?'📍 GPS':
-                                r.metodo==='PIN'?'🔐 PIN':
-                                r.metodo==='QR'?'📷 QR':'📋'
-                              } color={T.azul} bg={T.azulLight} />
-                              {r.foto && <Badge label="📸" color={T.verde} bg={T.verdeLight} />}
-                            </div>
-                            <div style={{ fontSize:13, color:T.gris }}>
-                              🕐 {r.hora} · {fmt(r.fecha)}
-                              {(r.gpsLat||r.gps_lat)&&<span style={{ marginLeft:10 }}><a href={mapsUrl(r.gpsLat||r.gps_lat,r.gpsLng||r.gps_lng)} target="_blank" rel="noreferrer" style={{ color:T.azul, fontSize:12 }}>📍 Ver GPS</a></span>}
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-                    )
-                  })}
-              </div>
-            )}
-          </div>
+          <HistorialConExport
+            data={data}
+            mes={mesFiltro||mes}
+            colabsFiltrados={colabsFiltrados}
+            feriados={feriados}
+            configFeriados={configFeriados}
+            toast_={toast_}
+          />
         )}
 
         {/* FOTOCHECKS */}
@@ -1132,6 +1084,222 @@ export function PanelGerente({ data, mes, save, toast_, onSalir, addColaborador,
       </div>
     </div>
   )
+}
+
+// ─── HISTORIAL CON EXPORTACIÓN ───────────────────────────────────────────────
+function HistorialConExport({ data, mes, colabsFiltrados, feriados, configFeriados, toast_ }) {
+  const [modoRango, setModoRango]   = useState('mes')   // 'mes' | 'fechas'
+  const [mesSel, setMesSel]         = useState(mes)
+  const [desde, setDesde]           = useState(mes + '-01')
+  const [hasta, setHasta]           = useState(mes + '-' + new Date(mes.split('-')[0], mes.split('-')[1], 0).getDate().toString().padStart(2,'0'))
+  const [modalExport, setModalExport] = useState(false)
+
+  // Filtrar registros según modo
+  const registrosFiltrados = data.registros.filter(r => {
+    if (r.tipo !== 'checkin') return false
+    if (modoRango === 'mes') return r.fecha?.startsWith(mesSel)
+    return r.fecha >= desde && r.fecha <= hasta
+  }).sort((a,b) => (b.timestamp||'').localeCompare(a.timestamp||''))
+
+  const labelRango = modoRango === 'mes'
+    ? `Mes: ${mesSel}`
+    : `${desde} al ${hasta}`
+
+  return (
+    <div>
+      {/* CABECERA */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+        <div style={{ fontWeight:900, fontSize:20 }}>📋 Historial de marcaciones</div>
+        <button onClick={() => setModalExport(true)} style={{
+          background: T.verde, color:'#fff', border:'none', borderRadius:10,
+          padding:'10px 18px', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit',
+        }}>📥 Exportar</button>
+      </div>
+
+      {/* SELECTOR DE RANGO */}
+      <Card style={{ marginBottom:16, padding:'14px 18px' }}>
+        <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+          {['mes','fechas'].map(m => (
+            <button key={m} onClick={() => setModoRango(m)} style={{
+              background: modoRango===m ? T.verde : '#F0F4F8',
+              color: modoRango===m ? '#fff' : T.gris,
+              border: 'none', borderRadius:8, padding:'7px 18px',
+              fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit',
+            }}>{m === 'mes' ? '📅 Por mes' : '📆 Por fechas'}</button>
+          ))}
+        </div>
+
+        {modoRango === 'mes' ? (
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <label style={{ fontSize:12, fontWeight:700, color:T.gris }}>Mes:</label>
+            <input type="month" value={mesSel} onChange={e => setMesSel(e.target.value)}
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid #ccc', fontSize:14, fontFamily:'inherit' }}/>
+            <span style={{ fontSize:12, color:'#888' }}>
+              {registrosFiltrados.length} marcaciones
+            </span>
+          </div>
+        ) : (
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <label style={{ fontSize:12, fontWeight:700, color:T.gris }}>Desde:</label>
+            <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid #ccc', fontSize:14, fontFamily:'inherit' }}/>
+            <label style={{ fontSize:12, fontWeight:700, color:T.gris }}>Hasta:</label>
+            <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid #ccc', fontSize:14, fontFamily:'inherit' }}/>
+            <span style={{ fontSize:12, color:'#888' }}>
+              {registrosFiltrados.length} marcaciones
+            </span>
+          </div>
+        )}
+      </Card>
+
+      {/* LISTA */}
+      {registrosFiltrados.length === 0
+        ? <Card style={{ textAlign:'center', padding:40, color:'#888' }}>Sin marcaciones en este período.</Card>
+        : <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {registrosFiltrados.map(r => {
+              const colab = data.colaboradores.find(c => c.id===(r.colab_id||r.colabId))
+              const tm = r.tipo_marca||r.tipoMarca
+              const color = tm==='entrada'?T.verde:tm==='salida'?T.rojo:T.morado
+              return (
+                <Card key={r.id} style={{ borderLeft:`4px solid ${color}`, padding:'14px 18px' }}>
+                  <div style={{ display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
+                    <div style={{ width:52, height:52, borderRadius:10, overflow:'hidden', background:T.grisLight, flexShrink:0, border:`2px solid ${color}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      {r.foto ? <img src={r.foto} alt="selfie" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ fontSize:22 }}>👤</span>}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:4 }}>
+                        <span style={{ fontWeight:800, fontSize:15 }}>{colab?.nombre||'—'}</span>
+                        <Badge label={(tm||'').toUpperCase()} color={color} />
+                        <Badge label={r.metodo==='GPS+Selfie'?'📍 GPS':r.metodo==='PIN'?'🔐 PIN':r.metodo==='QR'?'📷 QR':'📋'} color={T.azul} bg={T.azulLight} />
+                        {r.foto && <Badge label="📸" color={T.verde} bg={T.verdeLight} />}
+                      </div>
+                      <div style={{ fontSize:13, color:T.gris }}>
+                        🕐 {r.hora} · {fmt(r.fecha)}
+                        {(r.gpsLat||r.gps_lat) && <span style={{ marginLeft:10 }}>
+                          <a href={mapsUrl(r.gpsLat||r.gps_lat, r.gpsLng||r.gps_lng)} target="_blank" rel="noreferrer" style={{ color:T.azul, fontSize:12 }}>📍 Ver GPS</a>
+                        </span>}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+      }
+
+      {/* MODAL EXPORTAR */}
+      {modalExport && (
+        <div style={{ position:'fixed', inset:0, background:'#0007', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+          onClick={e => e.target===e.currentTarget && setModalExport(false)}>
+          <div style={{ background:'#fff', borderRadius:18, padding:28, width:'100%', maxWidth:460, boxShadow:'0 10px 40px #0004' }}>
+            <div style={{ fontWeight:900, fontSize:18, color:T.verde, marginBottom:6 }}>📥 Exportar datos</div>
+            <div style={{ fontSize:13, color:'#888', marginBottom:20 }}>Rango seleccionado: <strong>{labelRango}</strong></div>
+
+            {/* OPCIÓN 1 */}
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
+              <button onClick={() => {
+                exportarDetalladoRango(data, registrosFiltrados, colabsFiltrados, labelRango)
+                toast_('📥 Descargando detalle de marcaciones...')
+                setModalExport(false)
+              }} style={{
+                background: T.verde, color:'#fff', border:'none', borderRadius:12,
+                padding:'16px 20px', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit',
+                textAlign:'left', display:'flex', flexDirection:'column', gap:4,
+              }}>
+                <span>📋 Detalle de marcaciones</span>
+                <span style={{ fontSize:11, fontWeight:400, opacity:.85 }}>Una fila por cada entrada/salida registrada. Incluye hora, método, GPS y foto.</span>
+              </button>
+
+              <button onClick={() => {
+                if (modoRango === 'mes') {
+                  exportarResumenExcel(data, mesSel, colabsFiltrados, feriados, configFeriados)
+                } else {
+                  exportarResumenRango(data, registrosFiltrados, colabsFiltrados, desde, hasta, feriados, configFeriados)
+                }
+                toast_('📊 Descargando resumen mensual...')
+                setModalExport(false)
+              }} style={{
+                background: '#0D47A1', color:'#fff', border:'none', borderRadius:12,
+                padding:'16px 20px', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit',
+                textAlign:'left', display:'flex', flexDirection:'column', gap:4,
+              }}>
+                <span>📊 Resumen por colaborador</span>
+                <span style={{ fontSize:11, fontWeight:400, opacity:.85 }}>Una fila por persona con días trabajados, tardanzas, horas extra y total neto a pagar.</span>
+              </button>
+            </div>
+
+            <button onClick={() => setModalExport(false)} style={{
+              width:'100%', background:'#F0F4F8', border:'none', borderRadius:10,
+              padding:'11px', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', color:T.gris,
+            }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Detalle por rango de fechas libre
+function exportarDetalladoRango(data, registros, colabsFiltrados, labelRango) {
+  const filas = [
+    ['REPORTE DE ASISTENCIA — MEGA AVENTURA SAC / MEGA SOSTENIBLE SAC'],
+    [`Período: ${labelRango}`, `Generado: ${new Date().toLocaleDateString('es-PE')} ${new Date().toLocaleTimeString('es-PE')}`],
+    [],
+    ['Colaborador','Empresa','Cargo','Fecha','Hora','Tipo','Método','GPS Lat','GPS Lng','Foto','Observaciones'],
+  ]
+  registros.forEach(r => {
+    const colab = data.colaboradores.find(c => c.id===(r.colab_id||r.colabId))
+    if (colabsFiltrados.length && !colabsFiltrados.find(c => c.id===colab?.id)) return
+    const tm = r.tipo_marca||r.tipoMarca||''
+    filas.push([
+      colab?.nombre||'—', colab?.empresa||'—', colab?.cargo||'—',
+      r.fecha||'', r.hora||'',
+      tm.charAt(0).toUpperCase()+tm.slice(1),
+      r.metodo||'',
+      r.gpsLat||r.gps_lat||'', r.gpsLng||r.gps_lng||'',
+      r.foto?'Sí':'No', r.observaciones||'',
+    ])
+  })
+  filas.push([],[`Total marcaciones: ${registros.length}`])
+  descargarCSV(filas, `Asistencia_${labelRango.replace(/ /g,'_').replace(/\//g,'-')}_Mega.csv`)
+}
+
+// Resumen por colaborador para rango libre (sin cálculo de horas extra — usa días trabajados)
+function exportarResumenRango(data, registros, colabsFiltrados, desde, hasta, feriados, configFeriados) {
+  const lista = colabsFiltrados.length ? colabsFiltrados : data.colaboradores
+  const filas = [
+    ['RESUMEN DE ASISTENCIA — MEGA AVENTURA SAC / MEGA SOSTENIBLE SAC'],
+    [`Período: ${desde} al ${hasta}`, `Generado: ${new Date().toLocaleDateString('es-PE')}`],
+    [],
+    ['Colaborador','Empresa','Cargo','Días trabajados','Tardanzas','Días campo','Horas totales','Marcaciones totales'],
+  ]
+
+  lista.forEach(c => {
+    const regsColab = registros.filter(r => (r.colab_id||r.colabId)===c.id)
+    const porDia = {}
+    regsColab.forEach(r => {
+      const tm = r.tipo_marca||r.tipoMarca
+      if (!porDia[r.fecha]) porDia[r.fecha] = {}
+      if (tm==='entrada') porDia[r.fecha].entrada = r.hora
+      if (tm==='salida')  porDia[r.fecha].salida  = r.hora
+      if (tm==='campo')   porDia[r.fecha].campo   = true
+    })
+    const diasTrabajados = Object.values(porDia).filter(d => d.entrada).length
+    const diasCampo      = Object.values(porDia).filter(d => d.campo).length
+    let horasTotales = 0
+    Object.values(porDia).forEach(d => {
+      if (d.entrada && d.salida) horasTotales += diffH(d.entrada, d.salida)
+    })
+    filas.push([
+      c.nombre, c.empresa||'', c.cargo||'',
+      diasTrabajados, '—', diasCampo,
+      Math.round(horasTotales*10)/10,
+      regsColab.length,
+    ])
+  })
+
+  descargarCSV(filas, `Resumen_${desde}_${hasta}_Mega.csv`)
 }
 
 // ─── CAMBIAR CONTRASEÑA ───────────────────────────────────────────────────────
